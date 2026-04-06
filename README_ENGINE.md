@@ -71,5 +71,17 @@ docker run --rm -it \
   suda/ws-scrcpy:latest
 ```
 
-## 5. Dashboard Configuration
-The React dashboard is already configured to listen to the `devices`, `numbers`, and `logs` collections. Ensure your `sniffer.py` and `automator.py` are using the correct Firestore project ID from your `firebase-applet-config.json`.
+## 6. Render.com All-in-One Deployment (Free Tier)
+
+To run both the Dashboard and the Sniffer on a single Render Free Web Service:
+
+1.  **Create a Web Service** on Render.
+2.  **Connect your GitHub repository**.
+3.  **Environment Variables**:
+    *   `NODE_ENV`: `production`
+    *   `FIREBASE_SERVICE_ACCOUNT`: (Paste the content of your `serviceAccountKey.json`)
+4.  **Deployment Method**: Select **Dockerfile**.
+5.  **Memory Management**: The sniffer uses Playwright/Chromium, which can be memory-intensive. The provided `Dockerfile` is optimized for the 512MB limit by installing only Chromium and using a single browser instance.
+6.  **Keep Alive**: Since Render Free tier spins down after 15 minutes of inactivity, use an external pinger (like Cron-job.org or UptimeRobot) to ping your service URL every 10-14 minutes.
+
+The `server.ts` is configured to automatically launch the `sniffer.py` engine as a child process when the Node.js server starts.

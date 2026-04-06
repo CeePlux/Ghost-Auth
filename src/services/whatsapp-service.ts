@@ -68,6 +68,7 @@ export class WhatsAppService {
         this.pairingCode = null;
         this.retryCount = 0;
       } else if (connection === "connecting") {
+        console.log("Step 3: Connecting to WhatsApp");
         this.status = "connecting";
       }
     });

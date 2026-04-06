@@ -96,6 +96,7 @@ export default function App() {
   const [pairingPhone, setPairingPhone] = useState('');
   const [pairingCode, setPairingCode] = useState<string | null>(null);
   const [pairingStatus, setPairingStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
+  const [snifferActive, setSnifferActive] = useState(false);
   const logEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -127,6 +128,14 @@ export default function App() {
     }
   };
 
+  const toggleSniffer = async () => {
+    try {
+      const res = await fetch('/api/sniffer/toggle', { method: 'POST' });
+      const data = await res.json();
+      setSnifferActive(data.active);
+    } catch (e) {}
+  };
+
   const [waStatus, setWaStatus] = useState<{status: string, pairingCode: string | null}>({status: 'disconnected', pairingCode: null});
 
   useEffect(() => {
@@ -137,6 +146,10 @@ export default function App() {
         if (data.status) {
           setWaStatus(data.status);
         }
+
+        const snifferRes = await fetch('/api/sniffer/status');
+        const snifferData = await snifferRes.json();
+        setSnifferActive(snifferData.active);
       } catch (e) {}
     };
     const interval = setInterval(fetchStatus, 5000);
@@ -308,6 +321,13 @@ export default function App() {
             <div className="bg-[#111114] border border-white/5 rounded-xl px-4 py-2 flex items-center gap-2">
               <div className={cn(
                 "w-2 h-2 rounded-full animate-pulse",
+                snifferActive ? "bg-indigo-500" : "bg-slate-500"
+              )} />
+              <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">SNIFFER: {snifferActive ? 'ACTIVE' : 'IDLE'}</span>
+            </div>
+            <div className="bg-[#111114] border border-white/5 rounded-xl px-4 py-2 flex items-center gap-2">
+              <div className={cn(
+                "w-2 h-2 rounded-full animate-pulse",
                 waStatus.status === 'connected' ? "bg-emerald-500" : "bg-rose-500"
               )} />
               <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">WA: {waStatus.status}</span>
@@ -380,6 +400,44 @@ export default function App() {
               exit={{ opacity: 0, y: -10 }}
               className="space-y-6"
             >
+              <div className="flex items-center justify-between bg-[#111114] border border-white/5 p-6 rounded-2xl">
+                <div className="flex items-center gap-4">
+                  <div className={cn(
+                    "w-12 h-12 rounded-xl flex items-center justify-center transition-colors",
+                    snifferActive ? "bg-indigo-500/10 text-indigo-400" : "bg-slate-500/10 text-slate-500"
+                  )}>
+                    <Activity className={cn("w-6 h-6", snifferActive && "animate-pulse")} />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold text-white tracking-tight">Engine Control</h3>
+                    <p className="text-xs text-slate-500">
+                      {snifferActive ? "Sniffer is currently monitoring public SMS gateways." : "Sniffer is currently idle."}
+                    </p>
+                  </div>
+                </div>
+                <button 
+                  onClick={toggleSniffer}
+                  className={cn(
+                    "px-6 py-3 rounded-xl font-bold transition-all flex items-center gap-2",
+                    snifferActive 
+                      ? "bg-rose-500/10 text-rose-500 hover:bg-rose-500/20 border border-rose-500/20" 
+                      : "bg-indigo-600 text-white hover:bg-indigo-500 shadow-lg shadow-indigo-500/20"
+                  )}
+                >
+                  {snifferActive ? (
+                    <>
+                      <LogOut className="w-4 h-4 rotate-90" />
+                      Stop Sniffer
+                    </>
+                  ) : (
+                    <>
+                      <Play className="w-4 h-4" />
+                      Start Sniffer
+                    </>
+                  )}
+                </button>
+              </div>
+
               <div className="bg-[#111114] border border-white/5 rounded-2xl overflow-hidden">
                 <table className="w-full text-left border-collapse">
                   <thead>

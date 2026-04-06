@@ -1,1 +1,1 @@
-worker: python sniffer.py
+web: npm run dev
