@@ -1,0 +1,8 @@
+{
+  "name": "Ghost-Auth Headless",
+  "description": "Headless WhatsApp registration and pairing dashboard using Baileys and Cloud Sniffer.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}

@@ -1,0 +1,72 @@
+{
+  "entities": {
+    "Device": {
+      "title": "Android Device",
+      "description": "A virtual Android device in the farm",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique device ID" },
+        "name": { "type": "string", "description": "Display name of the device" },
+        "status": { "type": "string", "enum": ["online", "offline", "busy", "error"], "description": "Current status" },
+        "currentNumber": { "type": "string", "description": "The phone number currently being processed" },
+        "lastActivity": { "type": "string", "format": "date-time", "description": "Last time the device was active" },
+        "wsUrl": { "type": "string", "description": "WebSocket URL for remote control" }
+      },
+      "required": ["id", "name", "status"]
+    },
+    "Number": {
+      "title": "Phone Number",
+      "description": "A scraped phone number from public SMS sites",
+      "type": "object",
+      "properties": {
+        "number": { "type": "string", "description": "The phone number" },
+        "country": { "type": "string", "description": "Country of the number" },
+        "source": { "type": "string", "description": "Website source" },
+        "addedAt": { "type": "string", "format": "date-time", "description": "When it was detected" },
+        "status": { "type": "string", "enum": ["new", "processing", "success", "failed", "banned"], "description": "Registration status" },
+        "otp": { "type": "string", "description": "The detected WhatsApp OTP" }
+      },
+      "required": ["number", "status"]
+    },
+    "Log": {
+      "title": "System Log",
+      "description": "Activity logs for the system",
+      "type": "object",
+      "properties": {
+        "timestamp": { "type": "string", "format": "date-time" },
+        "level": { "type": "string", "enum": ["info", "warn", "error"] },
+        "message": { "type": "string" },
+        "deviceId": { "type": "string" }
+      },
+      "required": ["timestamp", "message"]
+    },
+    "Session": {
+      "title": "WhatsApp Session",
+      "description": "Baileys session data for persistence",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "data": { "type": "string", "description": "Serialized session JSON" }
+      },
+      "required": ["id", "data"]
+    }
+  },
+  "firestore": {
+    "devices": {
+      "schema": "Device",
+      "description": "Collection of virtual devices"
+    },
+    "numbers": {
+      "schema": "Number",
+      "description": "Collection of scraped phone numbers"
+    },
+    "logs": {
+      "schema": "Log",
+      "description": "System activity logs"
+    },
+    "sessions": {
+      "schema": "Session",
+      "description": "Baileys auth sessions"
+    }
+  }
+}
