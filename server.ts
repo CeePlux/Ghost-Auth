@@ -160,6 +160,40 @@ async function startServer() {
     res.json({ success: true });
   });
 
+  app.post("/api/sniffer/trigger", async (req, res) => {
+    console.log("[Manual] User triggered a fresh hunt");
+    
+    try {
+      const activeGhostsSnapshot = await admin.firestore()
+        .collection('numbers')
+        .where('status', '==', 'active_ghost')
+        .get();
+      
+      if (activeGhostsSnapshot.size >= 5) {
+        return res.status(429).json({ message: 'Farm is full. Delete a ghost to hunt again.' });
+      }
+
+      // Trigger sniffer as a one-off process
+      const huntProcess = spawn("npx", ["tsx", "sniffer.ts"], {
+        stdio: "pipe",
+        env: { ...process.env, PYTHONUNBUFFERED: "1" }
+      });
+
+      huntProcess.stdout?.on("data", (data) => {
+        console.log(`[Manual Hunt STDOUT] ${data.toString().trim()}`);
+      });
+
+      huntProcess.stderr?.on("data", (data) => {
+        console.error(`[Manual Hunt STDERR] ${data.toString().trim()}`);
+      });
+
+      res.json({ message: 'Manual hunt started successfully!' });
+    } catch (error: any) {
+      console.error("[Manual] Hunt trigger failed:", error);
+      res.status(500).json({ message: `Hunt failed: ${error.message}` });
+    }
+  });
+
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({

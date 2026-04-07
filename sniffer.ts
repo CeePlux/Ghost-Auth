@@ -6,7 +6,11 @@ import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import axios from 'axios';
 
 // Use stealth plugin
-chromium.use(stealth());
+try {
+  chromium.use(stealth());
+} catch (e) {
+  console.error("Failed to apply stealth plugin:", e);
+}
 
 const API_URL = process.env.APP_URL || 'http://localhost:3000';
 
@@ -215,11 +219,18 @@ async function saveNumbers(numbers: any[]) {
 }
 
 async function main() {
-  await logToFirestore("Stealth-Light Scavenger Engine Started");
+  const browserlessToken = process.env.BROWSERLESS_TOKEN;
+  let browser: Browser;
 
-  const browser = await chromium.launch({
-    args: ['--disable-setuid-sandbox', '--no-sandbox', '--disable-dev-shm-usage', '--single-process']
-  });
+  if (browserlessToken) {
+    await logToFirestore("Stealth-Light Scavenger Engine: Connecting to Browserless.io (Remote Brain)...");
+    browser = await chromium.connectOverCDP(`wss://production-sfo.browserless.io?token=${browserlessToken}`);
+  } else {
+    await logToFirestore("Stealth-Light Scavenger Engine: Starting Local Browser (Warning: High RAM usage)...");
+    browser = await chromium.launch({
+      args: ['--disable-setuid-sandbox', '--no-sandbox', '--disable-dev-shm-usage', '--single-process']
+    });
+  }
 
   try {
     while (true) {

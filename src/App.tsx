@@ -96,7 +96,7 @@ const StatusBadge = ({ status }: { status: string }) => {
   );
 };
 
-const API_BASE = import.meta.env.VITE_API_URL || '';
+const API_BASE = ''; // Use relative paths to avoid CORS/URL issues in AI Studio
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
@@ -105,6 +105,7 @@ export default function App() {
   const [logs, setLogs] = useState<SystemLog[]>([]);
   const [activeTab, setActiveTab] = useState<'numbers' | 'sniffer' | 'logs'>('numbers');
   const [snifferActive, setSnifferActive] = useState(false);
+  const [manualHunting, setManualHunting] = useState(false);
   const logEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -118,9 +119,26 @@ export default function App() {
   const toggleSniffer = async () => {
     try {
       const res = await fetch(`${API_BASE}/api/sniffer/toggle`, { method: 'POST' });
+      if (!res.ok) throw new Error(`Server responded with ${res.status}`);
       const data = await res.json();
       setSnifferActive(data.active);
-    } catch (e) {}
+    } catch (e: any) {
+      console.error("Failed to toggle sniffer:", e);
+      alert("Failed to toggle scavenger: " + e.message);
+    }
+  };
+
+  const triggerManualHunt = async () => {
+    setManualHunting(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/sniffer/trigger`, { method: 'POST' });
+      const data = await res.json();
+      alert(data.message);
+    } catch (err: any) {
+      alert("Hunt failed: " + err.message);
+    } finally {
+      setManualHunting(false);
+    }
   };
 
   const [waStatus, setWaStatus] = useState<string>('Automated Farm Active');
@@ -428,27 +446,51 @@ export default function App() {
                     </p>
                   </div>
                 </div>
-                <button 
-                  onClick={toggleSniffer}
-                  className={cn(
-                    "px-6 py-3 rounded-xl font-bold transition-all flex items-center gap-2",
-                    snifferActive 
-                      ? "bg-rose-500/10 text-rose-500 hover:bg-rose-500/20 border border-rose-500/20" 
-                      : "bg-indigo-600 text-white hover:bg-indigo-500 shadow-lg shadow-indigo-500/20"
-                  )}
-                >
-                  {snifferActive ? (
-                    <>
-                      <RefreshCw className="w-4 h-4 animate-spin" />
-                      Stop Scavenger
-                    </>
-                  ) : (
-                    <>
-                      <Play className="w-4 h-4" />
-                      Start Scavenger
-                    </>
-                  )}
-                </button>
+                <div className="flex items-center gap-3">
+                  <button 
+                    onClick={triggerManualHunt}
+                    disabled={manualHunting}
+                    className={cn(
+                      "px-6 py-3 rounded-xl font-bold transition-all flex items-center gap-2",
+                      manualHunting 
+                        ? "bg-indigo-500/10 text-indigo-400 cursor-not-allowed" 
+                        : "bg-white/5 text-white hover:bg-white/10 border border-white/10"
+                    )}
+                  >
+                    {manualHunting ? (
+                      <>
+                        <RefreshCw className="w-4 h-4 animate-spin" />
+                        Hunting...
+                      </>
+                    ) : (
+                      <>
+                        <Play className="w-4 h-4" />
+                        🚀 Start Manual Hunt
+                      </>
+                    )}
+                  </button>
+                  <button 
+                    onClick={toggleSniffer}
+                    className={cn(
+                      "px-6 py-3 rounded-xl font-bold transition-all flex items-center gap-2",
+                      snifferActive 
+                        ? "bg-rose-500/10 text-rose-500 hover:bg-rose-500/20 border border-rose-500/20" 
+                        : "bg-indigo-600 text-white hover:bg-indigo-500 shadow-lg shadow-indigo-500/20"
+                    )}
+                  >
+                    {snifferActive ? (
+                      <>
+                        <RefreshCw className="w-4 h-4 animate-spin" />
+                        Stop Scavenger
+                      </>
+                    ) : (
+                      <>
+                        <Play className="w-4 h-4" />
+                        Start Scavenger
+                      </>
+                    )}
+                  </button>
+                </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

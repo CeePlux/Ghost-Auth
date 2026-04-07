@@ -116,7 +116,7 @@ export class WhatsAppService {
       await this.db.collection("numbers").doc(docId).update({ 
         status: "active_ghost",
         survivalState: "Warming Up",
-        lastSurvivalRun: firestore.SERVER_TIMESTAMP
+        lastSurvivalRun: admin.firestore.FieldValue.serverTimestamp()
       });
       
       // Initial Warm-up
@@ -168,7 +168,7 @@ export class WhatsAppService {
           const docId = snapshot.docs[0].id;
           await this.db.collection("numbers").doc(docId).update({ 
             survivalState: "Simulating Presence",
-            lastSurvivalRun: firestore.SERVER_TIMESTAMP
+            lastSurvivalRun: admin.firestore.FieldValue.serverTimestamp()
           });
           
           // Toggle presence
