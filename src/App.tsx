@@ -50,7 +50,7 @@ interface PhoneNumber {
   country: string;
   source: string;
   addedAt: any;
-  status: 'new' | 'processing' | 'success' | 'failed' | 'banned';
+  status: 'found' | 'requesting_otp' | 'otp_found' | 'active_ghost' | 'skipped_exists' | 'activation_failed' | 'new' | 'processing' | 'success' | 'failed' | 'banned';
   otp?: string;
 }
 
@@ -75,6 +75,12 @@ const StatusBadge = ({ status }: { status: string }) => {
     success: 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20',
     failed: 'bg-rose-500/10 text-rose-500 border-rose-500/20',
     banned: 'bg-slate-800/50 text-slate-400 border-slate-700',
+    found: 'bg-blue-500/10 text-blue-500 border-blue-500/20',
+    requesting_otp: 'bg-amber-500/10 text-amber-500 border-amber-500/20',
+    otp_found: 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20',
+    active_ghost: 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20',
+    skipped_exists: 'bg-slate-500/10 text-slate-500 border-slate-500/20',
+    activation_failed: 'bg-rose-500/10 text-rose-500 border-rose-500/20',
   };
 
   return (
@@ -94,11 +100,7 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [numbers, setNumbers] = useState<PhoneNumber[]>([]);
   const [logs, setLogs] = useState<SystemLog[]>([]);
-  const [activeTab, setActiveTab] = useState<'numbers' | 'sniffer' | 'logs' | 'pairing'>('numbers');
-  const [pairingPhone, setPairingPhone] = useState('');
-  const [pairingCode, setPairingCode] = useState<string | null>(null);
-  const [pairingStatus, setPairingStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
-  const [pairingError, setPairingError] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<'numbers' | 'sniffer' | 'logs'>('numbers');
   const [snifferActive, setSnifferActive] = useState(false);
   const logEndRef = useRef<HTMLDivElement>(null);
 
@@ -110,33 +112,6 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  const handlePairing = async () => {
-    setPairingError(null);
-    const phoneRegex = /^\d{10,15}$/;
-    if (!phoneRegex.test(pairingPhone)) {
-      setPairingError('Invalid format. Use digits only (10-15 chars).');
-      return;
-    }
-    
-    setPairingStatus('loading');
-    try {
-      const response = await fetch(`${API_BASE}/api/whatsapp/pair`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phoneNumber: pairingPhone })
-      });
-      const data = await response.json();
-      if (data.code) {
-        setPairingCode(data.code);
-        setPairingStatus('success');
-      } else {
-        setPairingStatus('error');
-      }
-    } catch (error) {
-      setPairingStatus('error');
-    }
-  };
-
   const toggleSniffer = async () => {
     try {
       const res = await fetch(`${API_BASE}/api/sniffer/toggle`, { method: 'POST' });
@@ -145,16 +120,14 @@ export default function App() {
     } catch (e) {}
   };
 
-  const [waStatus, setWaStatus] = useState<{status: string, pairingCode: string | null}>({status: 'disconnected', pairingCode: null});
+  const [waStatus, setWaStatus] = useState<string>('Automated Farm Active');
 
   useEffect(() => {
     const fetchStatus = async () => {
       try {
         const res = await fetch(`${API_BASE}/api/whatsapp/status`);
         const data = await res.json();
-        if (data.status) {
-          setWaStatus(data.status);
-        }
+        setWaStatus(data.status);
 
         const snifferRes = await fetch(`${API_BASE}/api/sniffer/status`);
         const snifferData = await snifferRes.json();
@@ -257,7 +230,7 @@ export default function App() {
             )}
           >
             <Smartphone className={cn("w-5 h-5", activeTab === 'numbers' ? "text-indigo-400" : "text-slate-500 group-hover:text-slate-300")} />
-            <span className="font-medium hidden md:block">Phone Numbers</span>
+            <span className="font-medium hidden md:block">Active Ghosts</span>
           </button>
           <button 
             onClick={() => setActiveTab('sniffer')}
@@ -267,7 +240,7 @@ export default function App() {
             )}
           >
             <Search className={cn("w-5 h-5", activeTab === 'sniffer' ? "text-indigo-400" : "text-slate-500 group-hover:text-slate-300")} />
-            <span className="font-medium hidden md:block">Number Sniffer</span>
+            <span className="font-medium hidden md:block">Scavenger Farm</span>
           </button>
           <button 
             onClick={() => setActiveTab('logs')}
@@ -278,16 +251,6 @@ export default function App() {
           >
             <Terminal className={cn("w-5 h-5", activeTab === 'logs' ? "text-indigo-400" : "text-slate-500 group-hover:text-slate-300")} />
             <span className="font-medium hidden md:block">System Logs</span>
-          </button>
-          <button 
-            onClick={() => setActiveTab('pairing')}
-            className={cn(
-              "w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all group",
-              activeTab === 'pairing' ? "bg-indigo-500/10 text-indigo-400" : "hover:bg-white/5"
-            )}
-          >
-            <ExternalLink className={cn("w-5 h-5", activeTab === 'pairing' ? "text-indigo-400" : "text-slate-500 group-hover:text-slate-300")} />
-            <span className="font-medium hidden md:block">Link to my Phone</span>
           </button>
         </nav>
 
@@ -314,16 +277,14 @@ export default function App() {
         <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
           <div>
             <h2 className="text-2xl font-bold text-white tracking-tight">
-              {activeTab === 'numbers' && "Active Phone Numbers"}
-              {activeTab === 'sniffer' && "Live Number Sniffer"}
+              {activeTab === 'numbers' && "Active Ghosts"}
+              {activeTab === 'sniffer' && "Scavenger Farm Engine"}
               {activeTab === 'logs' && "System Activity Logs"}
-              {activeTab === 'pairing' && "WhatsApp Pairing"}
             </h2>
             <p className="text-sm text-slate-500">
-              {activeTab === 'numbers' && `${numbers.length} numbers detected by cloud sniffer.`}
-              {activeTab === 'sniffer' && "Monitoring public SMS gateways for fresh registration vectors."}
+              {activeTab === 'numbers' && `${numbers.filter(n => n.status === 'active_ghost').length} active ghosts in the farm.`}
+              {activeTab === 'sniffer' && "Automated hunting for free numbers on public SMS sites."}
               {activeTab === 'logs' && "Real-time audit trail of automation and scraping events."}
-              {activeTab === 'pairing' && "Link the headless bot to your physical mobile device."}
             </p>
           </div>
           <div className="flex items-center gap-3">
@@ -335,11 +296,8 @@ export default function App() {
               <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">SNIFFER: {snifferActive ? 'ACTIVE' : 'IDLE'}</span>
             </div>
             <div className="bg-[#111114] border border-white/5 rounded-xl px-4 py-2 flex items-center gap-2">
-              <div className={cn(
-                "w-2 h-2 rounded-full animate-pulse",
-                waStatus.status === 'connected' ? "bg-emerald-500" : "bg-rose-500"
-              )} />
-              <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">WA: {waStatus.status}</span>
+              <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">{waStatus}</span>
             </div>
           </div>
         </header>
@@ -353,48 +311,52 @@ export default function App() {
               exit={{ opacity: 0, y: -10 }}
               className="space-y-6"
             >
-              <div className="grid grid-cols-1 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {numbers.map((num) => (
                   <motion.div 
                     key={num.id}
-                    layoutId={num.id}
-                    className="bg-[#111114] border border-white/5 p-6 rounded-2xl hover:border-white/10 transition-all flex items-center justify-between group"
+                    className="bg-[#111114] border border-white/5 p-6 rounded-2xl hover:border-indigo-500/30 transition-all group"
                   >
-                    <div className="flex items-center gap-6">
-                      <div className="w-14 h-14 bg-white/5 rounded-2xl flex items-center justify-center group-hover:bg-indigo-500/10 transition-colors">
-                        <Smartphone className="w-7 h-7 text-slate-400 group-hover:text-indigo-400 transition-colors" />
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-3 mb-2">
-                          <span className="text-xl font-bold text-white tracking-tight">+{num.number}</span>
-                          <StatusBadge status={num.status} />
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center gap-3">
+                        <div className={cn(
+                          "w-10 h-10 rounded-xl flex items-center justify-center",
+                          num.status === 'active_ghost' ? "bg-emerald-500/10" : "bg-amber-500/10"
+                        )}>
+                          <Smartphone className={cn(
+                            "w-5 h-5",
+                            num.status === 'active_ghost' ? "text-emerald-500" : "text-amber-500"
+                          )} />
                         </div>
-                        <div className="flex items-center gap-4 text-[10px] text-slate-500 font-bold uppercase tracking-widest">
-                          <span className="flex items-center gap-1"><Search className="w-3 h-3" /> {num.source}</span>
-                          <span className="w-1 h-1 bg-slate-700 rounded-full" />
-                          <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> {num.addedAt?.toDate().toLocaleTimeString()}</span>
+                        <div>
+                          <p className="text-sm font-bold text-white">+{num.number}</p>
+                          <p className="text-[10px] text-slate-500 font-medium uppercase tracking-wider">{num.source}</p>
                         </div>
                       </div>
+                      <StatusBadge status={num.status} />
                     </div>
                     
-                    <div className="flex items-center gap-8">
+                    <div className="flex items-center justify-between pt-4 border-t border-white/5">
+                      <div className="flex items-center gap-2">
+                        <Clock className="w-3 h-3 text-slate-600" />
+                        <span className="text-[10px] text-slate-500">
+                          {num.addedAt?.toDate().toLocaleTimeString()}
+                        </span>
+                      </div>
                       {num.otp && (
-                        <div className="text-right">
-                          <div className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest mb-1">WhatsApp OTP</div>
-                          <div className="text-2xl font-mono font-bold text-white tracking-[0.2em]">{num.otp}</div>
+                        <div className="flex items-center gap-1.5">
+                          <Shield className="w-3 h-3 text-indigo-500" />
+                          <span className="text-[10px] font-mono text-indigo-400">{num.otp}</span>
                         </div>
                       )}
-                      <button className="p-3 bg-white/5 rounded-xl hover:bg-white/10 transition-colors text-slate-400 hover:text-white">
-                        <ExternalLink className="w-5 h-5" />
-                      </button>
                     </div>
                   </motion.div>
                 ))}
                 {numbers.length === 0 && (
-                  <div className="py-20 text-center border-2 border-dashed border-white/5 rounded-3xl">
+                  <div className="col-span-full py-20 text-center border-2 border-dashed border-white/5 rounded-3xl">
                     <Smartphone className="w-12 h-12 text-slate-800 mx-auto mb-4" />
-                    <h3 className="text-lg font-bold text-slate-500">No Numbers Detected</h3>
-                    <p className="text-sm text-slate-600">The cloud sniffer is currently monitoring for new entries.</p>
+                    <h3 className="text-lg font-bold text-slate-500">No Ghosts Found</h3>
+                    <p className="text-sm text-slate-600">The scavenger farm is currently hunting for new numbers.</p>
                   </div>
                 )}
               </div>
@@ -418,9 +380,9 @@ export default function App() {
                     <Activity className={cn("w-6 h-6", snifferActive && "animate-pulse")} />
                   </div>
                   <div>
-                    <h3 className="text-lg font-bold text-white tracking-tight">Engine Control</h3>
+                    <h3 className="text-lg font-bold text-white tracking-tight">Scavenger Farm Engine</h3>
                     <p className="text-xs text-slate-500">
-                      {snifferActive ? "Sniffer is currently monitoring public SMS gateways." : "Sniffer is currently idle."}
+                      {snifferActive ? "Engine is currently hunting for free numbers on public SMS sites." : "Engine is currently idle."}
                     </p>
                   </div>
                 </div>
@@ -435,71 +397,47 @@ export default function App() {
                 >
                   {snifferActive ? (
                     <>
-                      <LogOut className="w-4 h-4 rotate-90" />
-                      Stop Sniffer
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                      Stop Scavenger
                     </>
                   ) : (
                     <>
                       <Play className="w-4 h-4" />
-                      Start Sniffer
+                      Start Scavenger
                     </>
                   )}
                 </button>
               </div>
 
-              <div className="bg-[#111114] border border-white/5 rounded-2xl overflow-hidden">
-                <table className="w-full text-left border-collapse">
-                  <thead>
-                    <tr className="bg-white/[0.02] border-b border-white/5">
-                      <th className="px-6 py-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest">Detected Number</th>
-                      <th className="px-6 py-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest">Source</th>
-                      <th className="px-6 py-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest">Status</th>
-                      <th className="px-6 py-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest">OTP Code</th>
-                      <th className="px-6 py-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest text-right">Time</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-white/5">
-                    {numbers.map((num) => (
-                      <tr key={num.id} className="hover:bg-white/[0.01] transition-colors group">
-                        <td className="px-6 py-4">
-                          <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 bg-white/5 rounded-lg flex items-center justify-center text-xs font-bold text-white">
-                              {num.country.slice(0, 2)}
-                            </div>
-                            <span className="font-mono font-bold text-white">{num.number}</span>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4">
-                          <span className="text-xs text-slate-500">{num.source}</span>
-                        </td>
-                        <td className="px-6 py-4">
-                          <StatusBadge status={num.status} />
-                        </td>
-                        <td className="px-6 py-4">
-                          {num.otp ? (
-                            <span className="px-2 py-1 bg-indigo-500/20 text-indigo-400 rounded font-mono font-bold text-xs tracking-widest">
-                              {num.otp}
-                            </span>
-                          ) : (
-                            <span className="text-slate-700 font-mono text-xs italic">Awaiting...</span>
-                          )}
-                        </td>
-                        <td className="px-6 py-4 text-right">
-                          <span className="text-[10px] text-slate-500 font-mono">
-                            {num.addedAt?.toDate().toLocaleTimeString()}
-                          </span>
-                        </td>
-                      </tr>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="bg-[#111114] border border-white/5 p-6 rounded-2xl">
+                  <h3 className="text-sm font-bold text-white mb-4 uppercase tracking-widest">Target Sources</h3>
+                  <div className="space-y-3">
+                    {['receive-smss.com', 'receive-sms-free.cc', 'mobilesms.io'].map(site => (
+                      <div key={site} className="flex items-center justify-between p-3 bg-white/5 rounded-xl border border-white/5">
+                        <span className="text-xs text-slate-300 font-medium">{site}</span>
+                        <div className="w-2 h-2 rounded-full bg-emerald-500" />
+                      </div>
                     ))}
-                    {numbers.length === 0 && (
-                      <tr>
-                        <td colSpan={5} className="px-6 py-12 text-center text-slate-600 italic">
-                          No numbers detected yet. Sniffer service is active.
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
+                  </div>
+                </div>
+                <div className="bg-[#111114] border border-white/5 p-6 rounded-2xl">
+                  <h3 className="text-sm font-bold text-white mb-4 uppercase tracking-widest">Engine Config</h3>
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-slate-500">Cycle Interval</span>
+                      <span className="text-xs text-white font-bold">10 Minutes</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-slate-500">Safety Delay</span>
+                      <span className="text-xs text-white font-bold">15m / 5 Checks</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-slate-500">Survival Layer</span>
+                      <span className="text-xs text-emerald-500 font-bold">ACTIVE</span>
+                    </div>
+                  </div>
+                </div>
               </div>
             </motion.div>
           )}
@@ -552,80 +490,6 @@ export default function App() {
                   </div>
                 ))}
                 <div ref={logEndRef} />
-              </div>
-            </motion.div>
-          )}
-
-          {activeTab === 'pairing' && (
-            <motion.div 
-              key="pairing"
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              className="max-w-xl mx-auto"
-            >
-              <div className="bg-[#111114] border border-white/5 p-8 rounded-2xl shadow-2xl">
-                <div className="w-16 h-16 bg-indigo-500/10 rounded-2xl flex items-center justify-center mb-6">
-                  <ExternalLink className="w-8 h-8 text-indigo-500" />
-                </div>
-                <h2 className="text-2xl font-bold text-white mb-2 tracking-tight">Link to my Phone</h2>
-                <p className="text-slate-400 mb-8 text-sm leading-relaxed">
-                  Generate a WhatsApp Pairing Code to link this bot to your physical mobile device. 
-                  Enter your phone number in international format (e.g., 447123456789).
-                </p>
-                
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">Phone Number</label>
-                    <input 
-                      type="text" 
-                      value={pairingPhone}
-                      onChange={(e) => {
-                        setPairingPhone(e.target.value);
-                        if (pairingError) setPairingError(null);
-                      }}
-                      placeholder="e.g. 447123456789"
-                      className={cn(
-                        "w-full bg-black/50 border rounded-xl px-4 py-3 text-white outline-none transition-all",
-                        pairingError ? "border-rose-500/50" : "border-white/5 focus:border-indigo-500/50"
-                      )}
-                    />
-                    {pairingError && (
-                      <motion.p 
-                        initial={{ opacity: 0, x: -10 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        className="text-rose-500 text-[10px] mt-1.5 font-bold uppercase tracking-wider flex items-center gap-1"
-                      >
-                        <AlertCircle className="w-3 h-3" />
-                        {pairingError}
-                      </motion.p>
-                    )}
-                  </div>
-                  
-                  <button 
-                    onClick={handlePairing}
-                    disabled={pairingStatus === 'loading'}
-                    className="w-full bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-semibold py-3 rounded-xl transition-all flex items-center justify-center gap-2"
-                  >
-                    {pairingStatus === 'loading' ? <RefreshCw className="w-5 h-5 animate-spin" /> : "Generate Pairing Code"}
-                  </button>
-
-                  {pairingCode && (
-                    <motion.div 
-                      initial={{ opacity: 0, scale: 0.9 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      className="mt-8 p-6 bg-indigo-500/10 border border-indigo-500/20 rounded-2xl text-center"
-                    >
-                      <p className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest mb-4">Your Pairing Code</p>
-                      <div className="text-4xl font-mono font-bold text-white tracking-[0.2em]">
-                        {pairingCode}
-                      </div>
-                      <p className="text-[10px] text-slate-500 mt-4 leading-relaxed">
-                        Open WhatsApp on your phone → Settings → Linked Devices → Link a Device → Link with phone number instead.
-                      </p>
-                    </motion.div>
-                  )}
-                </div>
               </div>
             </motion.div>
           )}

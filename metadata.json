@@ -1,6 +1,6 @@
 {
-  "name": "Ghost-Auth Headless",
-  "description": "Headless WhatsApp registration and pairing dashboard using Baileys and Cloud Sniffer.",
+  "name": "Ghost-Auth Scavenger Farm",
+  "description": "Automated WhatsApp registration farm that scavenges public SMS sites for numbers and activates them as Ghosts.",
   "requestFramePermissions": [
     "camera",
     "microphone"

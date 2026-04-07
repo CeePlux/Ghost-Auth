@@ -75,7 +75,10 @@ async function startServer() {
         console.log(`[Server] Sniffer process exited with code ${code} and signal ${signal}. Restarting in 10s...`);
         snifferProcess = null;
         setTimeout(() => {
-          // Restart logic could go here if needed
+          if (process.env.NODE_ENV === "production") {
+            // In production, we might want to auto-restart if it wasn't a manual kill
+            // For now, let's just log it. The user can toggle it from the UI.
+          }
         }, 10000);
       });
     }
@@ -98,31 +101,11 @@ async function startServer() {
   let isProcessing = false;
 
   app.post("/api/whatsapp/pair", async (req, res) => {
-    const { phoneNumber } = req.body;
-    if (!phoneNumber) return res.status(400).json({ error: "Phone number required" });
-    
-    if (isProcessing) {
-      return res.status(429).json({ error: "Another registration is in progress. Please wait." });
-    }
-
-    isProcessing = true;
-    try {
-      const code = await waService.requestPairingCode(phoneNumber);
-      res.json({ code });
-    } catch (error) {
-      res.status(500).json({ error: (error as Error).message });
-    } finally {
-      isProcessing = false;
-      // Memory management: Suggest GC if enabled
-      if (global.gc) {
-        console.log("[Server] Triggering manual GC...");
-        global.gc();
-      }
-    }
+    res.status(501).json({ error: "Manual pairing is disabled. Use the automated Scavenger Farm." });
   });
 
   app.get("/api/whatsapp/status", (req, res) => {
-    res.json({ status: waService.getStatus() });
+    res.json({ status: "Automated Farm Active" });
   });
 
   // Sniffer Control

@@ -80,41 +80,27 @@ def log_to_firestore(message, level='info', device_id=None):
         logging.error(f"Failed to log to Firestore: {e}")
 
 def scrape_receive_smss():
-    """Scrapes receive-smss.com for new numbers using requests and BS4."""
+    """Scrapes receive-smss.com for new numbers."""
     try:
         logging.info("Scraping receive-smss.com...")
         response = requests.get("https://receive-smss.com/", headers=HEADERS, timeout=30)
         response.raise_for_status()
-        
         soup = BeautifulSoup(response.text, 'html.parser')
         numbers_data = []
-        
         cards = soup.select(".number-boxes-item")
-        logging.info(f"Found {len(cards)} number cards.")
-        
         for card in cards:
             try:
                 num_elem = card.select_one(".number-boxes-item-number")
                 if not num_elem: continue
-                
-                number_text = num_elem.get_text(strip=True)
-                clean_number = re.sub(r'\D', '', number_text)
-                
-                # Check if it's "New"
-                is_new = "New" in card.get_text()
-                
-                if is_new:
+                clean_number = re.sub(r'\D', '', num_elem.get_text(strip=True))
+                if "New" in card.get_text():
                     numbers_data.append({
                         'number': clean_number,
-                        'country': 'Unknown',
                         'source': 'receive-smss.com',
-                        'status': 'new',
+                        'status': 'found',
                         'addedAt': firestore.SERVER_TIMESTAMP
                     })
-            except Exception as e:
-                logging.error(f"Error parsing card: {e}")
-                
-        # Clean up
+            except: pass
         del soup
         gc.collect()
         return numbers_data
@@ -122,78 +108,147 @@ def scrape_receive_smss():
         logging.error(f"Error scraping receive-smss: {e}")
         return []
 
-def monitor_otp(number_doc_id, phone_number):
+def scrape_receive_sms_free():
+    """Scrapes receive-sms-free.cc for new numbers."""
+    try:
+        logging.info("Scraping receive-sms-free.cc...")
+        response = requests.get("https://receive-sms-free.cc/", headers=HEADERS, timeout=30)
+        response.raise_for_status()
+        soup = BeautifulSoup(response.text, 'html.parser')
+        numbers_data = []
+        # Example selector, might need adjustment
+        links = soup.select("a[href*='/free-sms-number/']")
+        for link in links:
+            try:
+                text = link.get_text(strip=True)
+                clean_number = re.sub(r'\D', '', text)
+                if len(clean_number) > 8:
+                    numbers_data.append({
+                        'number': clean_number,
+                        'source': 'receive-sms-free.cc',
+                        'status': 'found',
+                        'addedAt': firestore.SERVER_TIMESTAMP
+                    })
+            except: pass
+        del soup
+        gc.collect()
+        return numbers_data
+    except Exception as e:
+        logging.error(f"Error scraping receive-sms-free: {e}")
+        return []
+
+def scrape_mobilesms_free():
+    """Scrapes mobilesms.io/free for new numbers."""
+    try:
+        logging.info("Scraping mobilesms.io/free...")
+        response = requests.get("https://mobilesms.io/free-sms-numbers/", headers=HEADERS, timeout=30)
+        response.raise_for_status()
+        soup = BeautifulSoup(response.text, 'html.parser')
+        numbers_data = []
+        # Example selector
+        items = soup.select(".free-number-item")
+        for item in items:
+            try:
+                num_text = item.get_text(strip=True)
+                clean_number = re.sub(r'\D', '', num_text)
+                if len(clean_number) > 8:
+                    numbers_data.append({
+                        'number': clean_number,
+                        'source': 'mobilesms.io',
+                        'status': 'found',
+                        'addedAt': firestore.SERVER_TIMESTAMP
+                    })
+            except: pass
+        del soup
+        gc.collect()
+        return numbers_data
+    except Exception as e:
+        logging.error(f"Error scraping mobilesms: {e}")
+        return []
+
+def monitor_otp(number_doc_id, phone_number, source):
     """Monitors the inbox of a specific number for a WhatsApp OTP."""
-    url = f"https://receive-smss.com/sms/{phone_number}/"
+    url = ""
+    if source == 'receive-smss.com':
+        url = f"https://receive-smss.com/sms/{phone_number}/"
+    elif source == 'receive-sms-free.cc':
+        url = f"https://receive-sms-free.cc/free-sms-number/{phone_number}.html"
+    elif source == 'mobilesms.io':
+        url = f"https://mobilesms.io/free-sms-numbers/{phone_number}/"
+    
+    if not url: return False
+
     logging.info(f"Monitoring OTP for {phone_number} at {url}")
-    log_to_firestore(f"Started monitoring OTP for {phone_number}")
     
     start_time = time.time()
-    timeout = 300 # 5 minutes timeout
+    timeout = 600 # 10 minutes timeout
     
     while time.time() - start_time < timeout:
         try:
-            response = requests.get(url, headers=HEADERS, timeout=30)
-            response.raise_for_status()
+            # Check if we should still monitor (e.g. status changed to 'requesting_otp' by Node.js)
+            doc = db.collection('numbers').document(number_doc_id).get()
+            if not doc.exists: break
+            status = doc.to_dict().get('status')
             
-            soup = BeautifulSoup(response.text, 'html.parser')
-            rows = soup.select("table tr")
+            # Only monitor if Node.js has triggered the OTP request
+            if status == 'requesting_otp':
+                response = requests.get(url, headers=HEADERS, timeout=30)
+                response.raise_for_status()
+                soup = BeautifulSoup(response.text, 'html.parser')
+                text = soup.get_text()
+                
+                # Look for WhatsApp OTP
+                otp_match = re.search(r'WhatsApp(?: code)?:?\s*(\d{3}-?\d{3})', text, re.IGNORECASE)
+                if otp_match:
+                    otp = otp_match.group(1).replace('-', '')
+                    logging.info(f"OTP Found for {phone_number}: {otp}")
+                    db.collection('numbers').document(number_doc_id).update({
+                        'otp': otp,
+                        'status': 'otp_found'
+                    })
+                    del soup
+                    gc.collect()
+                    return True
+                del soup
+                gc.collect()
             
-            for row in rows:
-                text = row.get_text()
-                if "WhatsApp" in text or "WhatsApp code" in text:
-                    otp_match = re.search(r'\b\d{3}-?\d{3}\b', text)
-                    if otp_match:
-                        otp = otp_match.group(0).replace('-', '')
-                        logging.info(f"OTP Found: {otp}")
-                        
-                        db.collection('numbers').document(number_doc_id).update({
-                            'otp': otp,
-                            'status': 'success'
-                        })
-                        log_to_firestore(f"OTP {otp} detected for {phone_number}", level='info')
-                        del soup
-                        gc.collect()
-                        return True
-            
-            # Clean up soup before sleeping
-            del soup
-            gc.collect()
-            time.sleep(20) # Poll every 20 seconds
+            time.sleep(15)
         except Exception as e:
-            logging.error(f"Error checking inbox for {phone_number}: {e}")
+            logging.error(f"Error monitoring {phone_number}: {e}")
             time.sleep(10)
             
-    logging.warning(f"Timeout reached for {phone_number}")
-    try:
-        db.collection('numbers').document(number_doc_id).update({'status': 'failed'})
-    except: pass
     return False
 
 def main():
-    logging.info("Step 1: Scraper Started (Requests/BS4 Mode)")
-    log_to_firestore("Step 1: Scraper Started (Requests/BS4 Mode)")
+    logging.info("Scavenger Farm Engine Started")
+    log_to_firestore("Scavenger Farm Engine Started")
     
     while True:
         try:
-            new_numbers = scrape_receive_smss()
+            all_found = []
+            all_found.extend(scrape_receive_smss())
+            all_found.extend(scrape_receive_sms_free())
+            all_found.extend(scrape_mobilesms_free())
             
-            for num_data in new_numbers:
+            for num_data in all_found:
+                # Check if number already exists
                 existing = db.collection('numbers').where('number', '==', num_data['number']).limit(1).get()
                 
                 if not existing:
                     doc_ref = db.collection('numbers').add(num_data)[1]
-                    logging.info(f"Step 2: Number Found - {num_data['number']}")
-                    log_to_firestore(f"Step 2: Number Found - {num_data['number']}")
+                    logging.info(f"New Scavenged Number: {num_data['number']}")
+                    log_to_firestore(f"New Scavenged Number: {num_data['number']}")
                     
-                    monitor_otp(doc_ref.id, num_data['number'])
+                    # Start a thread or just monitor in sequence (for now sequence is simpler)
+                    # In a real farm we'd use threading, but let's keep it simple for now
+                    monitor_otp(doc_ref.id, num_data['number'], num_data['source'])
             
-            logging.info("Cycle complete. Sleeping for 180s...")
+            logging.info("Cycle complete. Sleeping 10 minutes...")
             gc.collect()
-            time.sleep(180)
+            time.sleep(600)
         except Exception as e:
-            logging.error(f"Error in main loop cycle: {e}")
-            time.sleep(30)
+            logging.error(f"Main loop error: {e}")
+            time.sleep(60)
 
 if __name__ == "__main__":
     main()
