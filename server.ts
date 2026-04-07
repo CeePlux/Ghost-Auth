@@ -48,7 +48,38 @@ let snifferProcess: ChildProcess | null = null;
 
 async function startServer() {
   const app = express();
-  const PORT = 3000;
+  const PORT = Number(process.env.PORT) || 3000;
+
+  app.listen(PORT, "0.0.0.0", () => {
+    console.log(`Server running on http://localhost:${PORT}`);
+    
+    // Auto-launch sniffer on startup
+    if (!snifferProcess) {
+      console.log("[Server] Auto-launching sniffer engine...");
+      const pythonCmd = process.platform === "win32" ? "python" : "python3";
+      
+      snifferProcess = spawn(pythonCmd, ["sniffer.py"], {
+        stdio: "pipe",
+        env: { ...process.env, PYTHONUNBUFFERED: "1" }
+      });
+
+      snifferProcess.stdout?.on("data", (data) => {
+        console.log(`[Sniffer STDOUT] ${data.toString().trim()}`);
+      });
+
+      snifferProcess.stderr?.on("data", (data) => {
+        console.error(`[Sniffer STDERR] ${data.toString().trim()}`);
+      });
+
+      snifferProcess.on("exit", (code, signal) => {
+        console.log(`[Server] Sniffer process exited with code ${code} and signal ${signal}. Restarting in 10s...`);
+        snifferProcess = null;
+        setTimeout(() => {
+          // Restart logic could go here if needed
+        }, 10000);
+      });
+    }
+  });
 
   app.use(express.json());
 
@@ -151,37 +182,6 @@ async function startServer() {
       res.sendFile(path.join(distPath, "index.html"));
     });
   }
-
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running on http://localhost:${PORT}`);
-    
-    // Auto-launch sniffer on startup
-    if (!snifferProcess) {
-      console.log("[Server] Auto-launching sniffer engine...");
-      const pythonCmd = process.platform === "win32" ? "python" : "python3";
-      
-      snifferProcess = spawn(pythonCmd, ["sniffer.py"], {
-        stdio: "pipe",
-        env: { ...process.env, PYTHONUNBUFFERED: "1" }
-      });
-
-      snifferProcess.stdout?.on("data", (data) => {
-        console.log(`[Sniffer STDOUT] ${data.toString().trim()}`);
-      });
-
-      snifferProcess.stderr?.on("data", (data) => {
-        console.error(`[Sniffer STDERR] ${data.toString().trim()}`);
-      });
-
-      snifferProcess.on("exit", (code, signal) => {
-        console.log(`[Server] Sniffer process exited with code ${code} and signal ${signal}. Restarting in 10s...`);
-        snifferProcess = null;
-        setTimeout(() => {
-          // Restart logic could go here if needed
-        }, 10000);
-      });
-    }
-  });
 }
 
 startServer();

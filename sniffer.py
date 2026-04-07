@@ -1,7 +1,8 @@
 import os
 import json
 import firebase_admin
-from firebase_admin import credentials, firestore
+from firebase_admin import credentials
+from google.cloud import firestore
 
 # --- Firebase Initialization at the very top ---
 PROJECT_ID = "gen-lang-client-0472035720"
@@ -35,7 +36,7 @@ if not firebase_admin._apps:
         print(f"Firebase initialization fatal error: {e}")
         raise e
 
-db = firestore.client(database_id=DATABASE_ID)
+db = firestore.Client(project=PROJECT_ID, database=DATABASE_ID)
 
 import time
 import re
