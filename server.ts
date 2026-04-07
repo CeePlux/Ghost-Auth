@@ -4,6 +4,9 @@ import path from "path";
 import { fileURLToPath } from "url";
 
 // Initialize Firebase Admin at the very top
+const PROJECT_ID = "gen-lang-client-0472035720";
+const DATABASE_ID = "ai-studio-edf518e7-ccd7-4d8a-afd7-3f1030781b80";
+
 if (!admin.apps.length) {
   const serviceAccountVar = process.env.FIREBASE_SERVICE_ACCOUNT;
   if (serviceAccountVar) {
@@ -11,9 +14,9 @@ if (!admin.apps.length) {
       const serviceAccount = JSON.parse(serviceAccountVar);
       admin.initializeApp({
         credential: admin.credential.cert(serviceAccount),
-        projectId: "gen-lang-client-0472035720"
+        projectId: PROJECT_ID
       });
-      console.log("[Firebase] Initialized with service account from environment (Project: gen-lang-client-0472035720).");
+      console.log(`[Firebase] Initialized with service account from environment (Project: ${PROJECT_ID}).`);
       console.log('Firebase Initialized');
     } catch (e) {
       console.error("[Firebase] Failed to parse FIREBASE_SERVICE_ACCOUNT:", e);
@@ -23,7 +26,7 @@ if (!admin.apps.length) {
       const configPath = path.resolve(process.cwd(), "firebase-applet-config.json");
       const firebaseConfig = JSON.parse(readFileSync(configPath, "utf-8"));
       admin.initializeApp({
-        projectId: firebaseConfig.projectId || "gen-lang-client-0472035720",
+        projectId: firebaseConfig.projectId || PROJECT_ID,
       });
       console.log("[Firebase] Initialized with project ID from config.");
       console.log('Firebase Initialized');

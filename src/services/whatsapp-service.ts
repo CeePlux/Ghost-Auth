@@ -8,6 +8,9 @@ import makeWASocket, {
 } from "@whiskeysockets/baileys";
 import pino from "pino";
 import admin from "firebase-admin";
+import { getFirestore } from "firebase-admin/firestore";
+
+const DATABASE_ID = "ai-studio-edf518e7-ccd7-4d8a-afd7-3f1030781b80";
 
 export class WhatsAppService {
   private sock: any;
@@ -15,7 +18,7 @@ export class WhatsAppService {
   private pairingCode: string | null = null;
   private retryCount = 0;
   private maxRetryDelay = 60000; // 1 minute
-  private db = admin.firestore();
+  private db = getFirestore(admin.app(), DATABASE_ID);
 
   async init() {
     const { state, saveCreds } = await this.useFirestoreAuthState("main-session");

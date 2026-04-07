@@ -4,15 +4,18 @@ import firebase_admin
 from firebase_admin import credentials, firestore
 
 # --- Firebase Initialization at the very top ---
+PROJECT_ID = "gen-lang-client-0472035720"
+DATABASE_ID = "ai-studio-edf518e7-ccd7-4d8a-afd7-3f1030781b80"
+
 if not firebase_admin._apps:
     try:
         if os.environ.get('FIREBASE_SERVICE_ACCOUNT'):
             service_account_info = json.loads(os.environ.get('FIREBASE_SERVICE_ACCOUNT'))
             cred = credentials.Certificate(service_account_info)
             firebase_admin.initialize_app(cred, {
-                'projectId': 'gen-lang-client-0472035720'
+                'projectId': PROJECT_ID
             })
-            print("[Firebase] Initialized with service account from environment (Project: gen-lang-client-0472035720).")
+            print(f"[Firebase] Initialized with service account from environment (Project: {PROJECT_ID}).")
         elif os.path.exists('serviceAccountKey.json'):
             cred = credentials.Certificate('serviceAccountKey.json')
             firebase_admin.initialize_app(cred)
@@ -22,7 +25,7 @@ if not firebase_admin._apps:
             if os.path.exists(config_path):
                 with open(config_path, 'r') as f:
                     config = json.load(f)
-                    firebase_admin.initialize_app(options={'projectId': config.get('projectId', 'gen-lang-client-0472035720')})
+                    firebase_admin.initialize_app(options={'projectId': config.get('projectId', PROJECT_ID)})
                     print(f"[Firebase] Initialized with project ID from config: {config.get('projectId')}")
             else:
                 firebase_admin.initialize_app()
@@ -32,7 +35,7 @@ if not firebase_admin._apps:
         print(f"Firebase initialization fatal error: {e}")
         raise e
 
-db = firestore.client()
+db = firestore.client(database_id=DATABASE_ID)
 
 import time
 import re
@@ -179,9 +182,9 @@ def main():
                     
                     monitor_otp(doc_ref.id, num_data['number'])
             
-            logging.info("Cycle complete. Sleeping for 120s...")
+            logging.info("Cycle complete. Sleeping for 180s...")
             gc.collect()
-            time.sleep(120)
+            time.sleep(180)
         except Exception as e:
             logging.error(f"Error in main loop cycle: {e}")
             time.sleep(30)
