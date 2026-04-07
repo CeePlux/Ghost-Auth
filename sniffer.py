@@ -8,24 +8,38 @@ import requests
 from bs4 import BeautifulSoup
 import os
 import json
+import gc
 
 # --- Configuration ---
 try:
     if os.environ.get('FIREBASE_SERVICE_ACCOUNT'):
-        cred_dict = json.loads(os.environ.get('FIREBASE_SERVICE_ACCOUNT'))
-        cred = credentials.Certificate(cred_dict)
-        firebase_admin.initialize_app(cred)
+        try:
+            service_account_info = json.loads(os.environ.get('FIREBASE_SERVICE_ACCOUNT'))
+            cred = credentials.Certificate(service_account_info)
+            if not firebase_admin._apps:
+                firebase_admin.initialize_app(cred, {
+                    'projectId': 'gen-lang-client-0472035720'
+                })
+            print("[Firebase] Initialized with service account from environment (Project: gen-lang-client-0472035720).")
+        except Exception as e:
+            print(f"[Firebase] Failed to parse FIREBASE_SERVICE_ACCOUNT: {e}")
+            # Fallback to default
+            if not firebase_admin._apps:
+                firebase_admin.initialize_app()
     elif os.path.exists('serviceAccountKey.json'):
         cred = credentials.Certificate('serviceAccountKey.json')
-        firebase_admin.initialize_app(cred)
+        if not firebase_admin._apps:
+            firebase_admin.initialize_app(cred)
     else:
         config_path = 'firebase-applet-config.json'
         if os.path.exists(config_path):
             with open(config_path, 'r') as f:
                 config = json.load(f)
-                firebase_admin.initialize_app(options={'projectId': config['projectId']})
+                if not firebase_admin._apps:
+                    firebase_admin.initialize_app(options={'projectId': config.get('projectId', 'gen-lang-client-0472035720')})
         else:
-            firebase_admin.initialize_app()
+            if not firebase_admin._apps:
+                firebase_admin.initialize_app()
 except Exception as e:
     print(f"Firebase initialization warning: {e}")
     try:
@@ -96,6 +110,9 @@ def scrape_receive_smss():
             except Exception as e:
                 logging.error(f"Error parsing card: {e}")
                 
+        # Clean up
+        del soup
+        gc.collect()
         return numbers_data
     except Exception as e:
         logging.error(f"Error scraping receive-smss: {e}")
@@ -131,8 +148,13 @@ def monitor_otp(number_doc_id, phone_number):
                             'status': 'success'
                         })
                         log_to_firestore(f"OTP {otp} detected for {phone_number}", level='info')
+                        del soup
+                        gc.collect()
                         return True
             
+            # Clean up soup before sleeping
+            del soup
+            gc.collect()
             time.sleep(20) # Poll every 20 seconds
         except Exception as e:
             logging.error(f"Error checking inbox for {phone_number}: {e}")
@@ -162,8 +184,9 @@ def main():
                     
                     monitor_otp(doc_ref.id, num_data['number'])
             
-            logging.info("Cycle complete. Sleeping for 60s...")
-            time.sleep(60)
+            logging.info("Cycle complete. Sleeping for 120s...")
+            gc.collect()
+            time.sleep(120)
         except Exception as e:
             logging.error(f"Error in main loop cycle: {e}")
             time.sleep(30)

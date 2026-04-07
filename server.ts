@@ -4,6 +4,36 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { WhatsAppService } from "./src/services/whatsapp-service.ts";
 import { spawn, ChildProcess } from "child_process";
+import admin from "firebase-admin";
+import { readFileSync } from "fs";
+
+// Initialize Firebase Admin early
+if (!admin.apps.length) {
+  const serviceAccountVar = process.env.FIREBASE_SERVICE_ACCOUNT;
+  if (serviceAccountVar) {
+    try {
+      const serviceAccount = JSON.parse(serviceAccountVar);
+      admin.initializeApp({
+        credential: admin.credential.cert(serviceAccount),
+        projectId: "gen-lang-client-0472035720"
+      });
+      console.log("[Firebase] Initialized with service account from environment (Project: gen-lang-client-0472035720).");
+    } catch (e) {
+      console.error("[Firebase] Failed to parse FIREBASE_SERVICE_ACCOUNT:", e);
+    }
+  } else {
+    try {
+      const configPath = path.resolve(process.cwd(), "firebase-applet-config.json");
+      const firebaseConfig = JSON.parse(readFileSync(configPath, "utf-8"));
+      admin.initializeApp({
+        projectId: firebaseConfig.projectId || "gen-lang-client-0472035720",
+      });
+      console.log("[Firebase] Initialized with project ID from config.");
+    } catch (e) {
+      console.error("[Firebase] Failed to initialize Firebase from config:", e);
+    }
+  }
+}
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);

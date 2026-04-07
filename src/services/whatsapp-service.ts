@@ -8,18 +8,6 @@ import makeWASocket, {
 } from "@whiskeysockets/baileys";
 import pino from "pino";
 import admin from "firebase-admin";
-import { readFileSync } from "fs";
-import path from "path";
-
-// Initialize Firebase Admin
-const configPath = path.resolve(process.cwd(), "firebase-applet-config.json");
-const firebaseConfig = JSON.parse(readFileSync(configPath, "utf-8"));
-
-if (!admin.apps.length) {
-  admin.initializeApp({
-    projectId: firebaseConfig.projectId,
-  });
-}
 
 const db = admin.firestore();
 
