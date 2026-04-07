@@ -3,6 +3,7 @@ import json
 import firebase_admin
 from firebase_admin import credentials
 from google.cloud import firestore
+from google.oauth2 import service_account
 
 # --- Firebase Initialization at the very top ---
 PROJECT_ID = "gen-lang-client-0472035720"
@@ -17,10 +18,15 @@ if not firebase_admin._apps:
                 'projectId': PROJECT_ID
             })
             print(f"[Firebase] Initialized with service account from environment (Project: {PROJECT_ID}).")
+            
+            # Create explicit credentials for the direct Firestore client
+            google_creds = service_account.Credentials.from_service_account_info(service_account_info)
+            db = firestore.Client(project=PROJECT_ID, database=DATABASE_ID, credentials=google_creds)
         elif os.path.exists('serviceAccountKey.json'):
             cred = credentials.Certificate('serviceAccountKey.json')
             firebase_admin.initialize_app(cred)
             print("[Firebase] Initialized with serviceAccountKey.json.")
+            db = firestore.Client(project=PROJECT_ID, database=DATABASE_ID)
         else:
             config_path = 'firebase-applet-config.json'
             if os.path.exists(config_path):
@@ -31,12 +37,11 @@ if not firebase_admin._apps:
             else:
                 firebase_admin.initialize_app()
                 print("[Firebase] Initialized with default credentials.")
+            db = firestore.Client(project=PROJECT_ID, database=DATABASE_ID)
         print('Firebase Initialized')
     except Exception as e:
         print(f"Firebase initialization fatal error: {e}")
         raise e
-
-db = firestore.Client(project=PROJECT_ID, database=DATABASE_ID)
 
 import time
 import re

@@ -98,6 +98,7 @@ export default function App() {
   const [pairingPhone, setPairingPhone] = useState('');
   const [pairingCode, setPairingCode] = useState<string | null>(null);
   const [pairingStatus, setPairingStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
+  const [pairingError, setPairingError] = useState<string | null>(null);
   const [snifferActive, setSnifferActive] = useState(false);
   const logEndRef = useRef<HTMLDivElement>(null);
 
@@ -110,7 +111,13 @@ export default function App() {
   }, []);
 
   const handlePairing = async () => {
-    if (!pairingPhone) return;
+    setPairingError(null);
+    const phoneRegex = /^\d{10,15}$/;
+    if (!phoneRegex.test(pairingPhone)) {
+      setPairingError('Invalid format. Use digits only (10-15 chars).');
+      return;
+    }
+    
     setPairingStatus('loading');
     try {
       const response = await fetch(`${API_BASE}/api/whatsapp/pair`, {
@@ -573,10 +580,26 @@ export default function App() {
                     <input 
                       type="text" 
                       value={pairingPhone}
-                      onChange={(e) => setPairingPhone(e.target.value)}
+                      onChange={(e) => {
+                        setPairingPhone(e.target.value);
+                        if (pairingError) setPairingError(null);
+                      }}
                       placeholder="e.g. 447123456789"
-                      className="w-full bg-black/50 border border-white/5 rounded-xl px-4 py-3 text-white focus:border-indigo-500/50 outline-none transition-all"
+                      className={cn(
+                        "w-full bg-black/50 border rounded-xl px-4 py-3 text-white outline-none transition-all",
+                        pairingError ? "border-rose-500/50" : "border-white/5 focus:border-indigo-500/50"
+                      )}
                     />
+                    {pairingError && (
+                      <motion.p 
+                        initial={{ opacity: 0, x: -10 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        className="text-rose-500 text-[10px] mt-1.5 font-bold uppercase tracking-wider flex items-center gap-1"
+                      >
+                        <AlertCircle className="w-3 h-3" />
+                        {pairingError}
+                      </motion.p>
+                    )}
                   </div>
                   
                   <button 

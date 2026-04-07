@@ -10,6 +10,9 @@ RUN apt-get update && apt-get install -y \
 # Set working directory
 WORKDIR /app
 
+# Create auth_info directory
+RUN mkdir -p /app/auth_info
+
 # Copy package files and install Node dependencies
 COPY package*.json ./
 RUN npm install --production

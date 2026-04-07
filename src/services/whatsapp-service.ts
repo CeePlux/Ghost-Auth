@@ -3,13 +3,12 @@ import {
   DisconnectReason, 
   useMultiFileAuthState, 
   fetchLatestBaileysVersion, 
-  makeCacheableSignalKeyStore,
-  AuthenticationState,
-  SignalDataTypeMap
+  makeCacheableSignalKeyStore
 } from "@whiskeysockets/baileys";
 import pino from "pino";
 import admin from "firebase-admin";
 import { getFirestore } from "firebase-admin/firestore";
+import { mkdirSync, existsSync } from "fs";
 
 const DATABASE_ID = "ai-studio-edf518e7-ccd7-4d8a-afd7-3f1030781b80";
 
@@ -22,21 +21,32 @@ export class WhatsAppService {
   private db = getFirestore(admin.app(), DATABASE_ID);
 
   async init() {
-    const { state, saveCreds } = await this.useFirestoreAuthState("main-session");
+    const authPath = "/app/auth_info";
+    if (!existsSync(authPath)) {
+      mkdirSync(authPath, { recursive: true });
+    }
+
+    const { state, saveCreds } = await useMultiFileAuthState(authPath);
     const { version } = await fetchLatestBaileysVersion();
 
     this.sock = makeWASocket({
       version,
-      printQRInTerminal: false,
+      printQRInTerminal: true, // Log QR code to terminal
       auth: {
         creds: state.creds,
         keys: makeCacheableSignalKeyStore(state.keys, pino({ level: "silent" }) as any),
       },
       logger: pino({ level: "silent" }) as any,
+      connectTimeoutMs: 60000, // 60 seconds timeout
     });
 
     this.sock.ev.on("connection.update", (update: any) => {
-      const { connection, lastDisconnect } = update;
+      const { connection, lastDisconnect, qr } = update;
+      
+      if (qr) {
+        console.log("[WhatsApp] QR Code received. Please scan to link account:", qr);
+      }
+
       if (connection === "close") {
         const shouldReconnect = (lastDisconnect?.error as any)?.output?.statusCode !== DisconnectReason.loggedOut;
         this.status = "disconnected";
@@ -80,92 +90,6 @@ export class WhatsAppService {
     return {
       status: this.status,
       pairingCode: this.pairingCode
-    };
-  }
-
-  private async useFirestoreAuthState(sessionId: string) {
-    const sessionRef = this.db.collection("sessions").doc(sessionId);
-    
-    const getSession = async () => {
-      const doc = await sessionRef.get();
-      return doc.exists ? JSON.parse(doc.data()?.data) : null;
-    };
-
-    const saveSession = async (data: any) => {
-      await sessionRef.set({
-        id: sessionId,
-        data: JSON.stringify(data, (key, value) => {
-          if (Buffer.isBuffer(value)) return value.toString("base64");
-          return value;
-        }),
-        updatedAt: admin.firestore.FieldValue.serverTimestamp()
-      });
-    };
-
-    // Load initial creds
-    let creds = await getSession();
-    if (!creds) {
-      creds = {
-        noiseKey: Buffer.from(new Uint8Array(32)),
-        signedIdentityKey: Buffer.from(new Uint8Array(32)),
-        signedPreKey: Buffer.from(new Uint8Array(32)),
-        registrationId: Math.floor(Math.random() * 16384),
-        advSecretKey: Buffer.from(new Uint8Array(32)),
-        processedHistoryMessages: [],
-        nextPreKeyId: 1,
-        firstUnuploadedPreKeyId: 1,
-        accountSettings: { unarchiveChats: false },
-        registered: false,
-        pairingEphemeralKeyPair: Buffer.from(new Uint8Array(32)),
-        serverHasPreKeys: false,
-      };
-    } else {
-      // Decode buffers
-      const decode = (obj: any) => {
-        for (const key in obj) {
-          if (typeof obj[key] === "string" && obj[key].length > 20 && !obj[key].includes(" ")) {
-            try {
-              obj[key] = Buffer.from(obj[key], "base64");
-            } catch (e) {}
-          } else if (typeof obj[key] === "object") {
-            decode(obj[key]);
-          }
-        }
-      };
-      decode(creds);
-    }
-
-    return {
-      state: {
-        creds,
-        keys: {
-          get: async (type: keyof SignalDataTypeMap, ids: string[]) => {
-            const data: any = {};
-            for (const id of ids) {
-              const keyDoc = await sessionRef.collection("keys").doc(`${type}-${id}`).get();
-              if (keyDoc.exists) {
-                const val = JSON.parse(keyDoc.data()?.data);
-                data[id] = Buffer.isBuffer(val) ? val : Buffer.from(val, "base64");
-              }
-            }
-            return data;
-          },
-          set: async (data: any) => {
-            for (const type in data) {
-              for (const id in data[type]) {
-                const val = data[type][id];
-                await sessionRef.collection("keys").doc(`${type}-${id}`).set({
-                  data: JSON.stringify(val, (key, value) => {
-                    if (Buffer.isBuffer(value)) return value.toString("base64");
-                    return value;
-                  })
-                });
-              }
-            }
-          }
-        }
-      },
-      saveCreds: () => saveSession(creds)
     };
   }
 }
