@@ -9,14 +9,13 @@ import makeWASocket, {
 import pino from "pino";
 import admin from "firebase-admin";
 
-const db = admin.firestore();
-
 export class WhatsAppService {
   private sock: any;
   private status: "disconnected" | "connecting" | "connected" = "disconnected";
   private pairingCode: string | null = null;
   private retryCount = 0;
   private maxRetryDelay = 60000; // 1 minute
+  private db = admin.firestore();
 
   async init() {
     const { state, saveCreds } = await this.useFirestoreAuthState("main-session");
@@ -81,7 +80,7 @@ export class WhatsAppService {
   }
 
   private async useFirestoreAuthState(sessionId: string) {
-    const sessionRef = db.collection("sessions").doc(sessionId);
+    const sessionRef = this.db.collection("sessions").doc(sessionId);
     
     const getSession = async () => {
       const doc = await sessionRef.get();

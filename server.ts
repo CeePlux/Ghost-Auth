@@ -1,13 +1,9 @@
-import express from "express";
-import { createServer as createViteServer } from "vite";
-import path from "path";
-import { fileURLToPath } from "url";
-import { WhatsAppService } from "./src/services/whatsapp-service.ts";
-import { spawn, ChildProcess } from "child_process";
 import admin from "firebase-admin";
 import { readFileSync } from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
 
-// Initialize Firebase Admin early
+// Initialize Firebase Admin at the very top
 if (!admin.apps.length) {
   const serviceAccountVar = process.env.FIREBASE_SERVICE_ACCOUNT;
   if (serviceAccountVar) {
@@ -18,6 +14,7 @@ if (!admin.apps.length) {
         projectId: "gen-lang-client-0472035720"
       });
       console.log("[Firebase] Initialized with service account from environment (Project: gen-lang-client-0472035720).");
+      console.log('Firebase Initialized');
     } catch (e) {
       console.error("[Firebase] Failed to parse FIREBASE_SERVICE_ACCOUNT:", e);
     }
@@ -29,11 +26,17 @@ if (!admin.apps.length) {
         projectId: firebaseConfig.projectId || "gen-lang-client-0472035720",
       });
       console.log("[Firebase] Initialized with project ID from config.");
+      console.log('Firebase Initialized');
     } catch (e) {
       console.error("[Firebase] Failed to initialize Firebase from config:", e);
     }
   }
 }
+
+import express from "express";
+import { createServer as createViteServer } from "vite";
+import { WhatsAppService } from "./src/services/whatsapp-service.ts";
+import { spawn, ChildProcess } from "child_process";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);

@@ -1,53 +1,48 @@
+import os
+import json
+import firebase_admin
+from firebase_admin import credentials, firestore
+
+# --- Firebase Initialization at the very top ---
+if not firebase_admin._apps:
+    try:
+        if os.environ.get('FIREBASE_SERVICE_ACCOUNT'):
+            service_account_info = json.loads(os.environ.get('FIREBASE_SERVICE_ACCOUNT'))
+            cred = credentials.Certificate(service_account_info)
+            firebase_admin.initialize_app(cred, {
+                'projectId': 'gen-lang-client-0472035720'
+            })
+            print("[Firebase] Initialized with service account from environment (Project: gen-lang-client-0472035720).")
+        elif os.path.exists('serviceAccountKey.json'):
+            cred = credentials.Certificate('serviceAccountKey.json')
+            firebase_admin.initialize_app(cred)
+            print("[Firebase] Initialized with serviceAccountKey.json.")
+        else:
+            config_path = 'firebase-applet-config.json'
+            if os.path.exists(config_path):
+                with open(config_path, 'r') as f:
+                    config = json.load(f)
+                    firebase_admin.initialize_app(options={'projectId': config.get('projectId', 'gen-lang-client-0472035720')})
+                    print(f"[Firebase] Initialized with project ID from config: {config.get('projectId')}")
+            else:
+                firebase_admin.initialize_app()
+                print("[Firebase] Initialized with default credentials.")
+        print('Firebase Initialized')
+    except Exception as e:
+        print(f"Firebase initialization fatal error: {e}")
+        raise e
+
+db = firestore.client()
+
 import time
 import re
 import logging
 from datetime import datetime
-import firebase_admin
-from firebase_admin import credentials, firestore
 import requests
 from bs4 import BeautifulSoup
-import os
-import json
 import gc
 
 # --- Configuration ---
-try:
-    if os.environ.get('FIREBASE_SERVICE_ACCOUNT'):
-        try:
-            service_account_info = json.loads(os.environ.get('FIREBASE_SERVICE_ACCOUNT'))
-            cred = credentials.Certificate(service_account_info)
-            if not firebase_admin._apps:
-                firebase_admin.initialize_app(cred, {
-                    'projectId': 'gen-lang-client-0472035720'
-                })
-            print("[Firebase] Initialized with service account from environment (Project: gen-lang-client-0472035720).")
-        except Exception as e:
-            print(f"[Firebase] Failed to parse FIREBASE_SERVICE_ACCOUNT: {e}")
-            # Fallback to default
-            if not firebase_admin._apps:
-                firebase_admin.initialize_app()
-    elif os.path.exists('serviceAccountKey.json'):
-        cred = credentials.Certificate('serviceAccountKey.json')
-        if not firebase_admin._apps:
-            firebase_admin.initialize_app(cred)
-    else:
-        config_path = 'firebase-applet-config.json'
-        if os.path.exists(config_path):
-            with open(config_path, 'r') as f:
-                config = json.load(f)
-                if not firebase_admin._apps:
-                    firebase_admin.initialize_app(options={'projectId': config.get('projectId', 'gen-lang-client-0472035720')})
-        else:
-            if not firebase_admin._apps:
-                firebase_admin.initialize_app()
-except Exception as e:
-    print(f"Firebase initialization warning: {e}")
-    try:
-        firebase_admin.get_app()
-    except ValueError:
-        raise e
-
-db = firestore.client()
 
 logging.basicConfig(
     level=logging.INFO, 
