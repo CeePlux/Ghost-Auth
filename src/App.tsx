@@ -87,6 +87,8 @@ const StatusBadge = ({ status }: { status: string }) => {
   );
 };
 
+const API_BASE = import.meta.env.VITE_API_URL || '';
+
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
@@ -111,7 +113,7 @@ export default function App() {
     if (!pairingPhone) return;
     setPairingStatus('loading');
     try {
-      const response = await fetch('/api/whatsapp/pair', {
+      const response = await fetch(`${API_BASE}/api/whatsapp/pair`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ phoneNumber: pairingPhone })
@@ -130,7 +132,7 @@ export default function App() {
 
   const toggleSniffer = async () => {
     try {
-      const res = await fetch('/api/sniffer/toggle', { method: 'POST' });
+      const res = await fetch(`${API_BASE}/api/sniffer/toggle`, { method: 'POST' });
       const data = await res.json();
       setSnifferActive(data.active);
     } catch (e) {}
@@ -141,13 +143,13 @@ export default function App() {
   useEffect(() => {
     const fetchStatus = async () => {
       try {
-        const res = await fetch('/api/whatsapp/status');
+        const res = await fetch(`${API_BASE}/api/whatsapp/status`);
         const data = await res.json();
         if (data.status) {
           setWaStatus(data.status);
         }
 
-        const snifferRes = await fetch('/api/sniffer/status');
+        const snifferRes = await fetch(`${API_BASE}/api/sniffer/status`);
         const snifferData = await snifferRes.json();
         setSnifferActive(snifferData.active);
       } catch (e) {}
