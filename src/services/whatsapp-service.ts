@@ -113,13 +113,21 @@ export class WhatsAppService {
       sock.ev.on("creds.update", saveCreds);
       this.sessions.set(number, sock);
 
-      await this.db.collection("numbers").doc(docId).update({ status: "active_ghost" });
+      await this.db.collection("numbers").doc(docId).update({ 
+        status: "active_ghost",
+        survivalState: "Warming Up",
+        lastSurvivalRun: firestore.SERVER_TIMESTAMP
+      });
       
       // Initial Warm-up
       await this.warmUpGhost(number, sock);
       
       // Profile Randomizer
-      await this.randomizeProfile(sock);
+      await this.randomizeProfile(number, sock);
+
+      await this.db.collection("numbers").doc(docId).update({ 
+        survivalState: "Active"
+      });
 
     } catch (e) {
       console.error(`[WhatsApp] Activation failed for ${number}:`, e);
@@ -154,24 +162,44 @@ export class WhatsAppService {
     console.log("[Survival] Running presence simulation for all Ghosts...");
     for (const [number, sock] of this.sessions.entries()) {
       try {
-        // Toggle presence
-        await sock.sendPresenceUpdate("available");
-        await delay(2000);
-        if (Math.random() > 0.5) {
-          await sock.sendPresenceUpdate("composing", "status@broadcast");
+        // Find docId for this number
+        const snapshot = await this.db.collection("numbers").where("number", "==", number).limit(1).get();
+        if (!snapshot.empty) {
+          const docId = snapshot.docs[0].id;
+          await this.db.collection("numbers").doc(docId).update({ 
+            survivalState: "Simulating Presence",
+            lastSurvivalRun: firestore.SERVER_TIMESTAMP
+          });
+          
+          // Toggle presence
+          await sock.sendPresenceUpdate("available");
+          await delay(2000);
+          if (Math.random() > 0.5) {
+            await sock.sendPresenceUpdate("composing", "status@broadcast");
+          }
+          
+          await this.db.collection("numbers").doc(docId).update({ 
+            survivalState: "Active"
+          });
+          console.log(`[Survival] Presence updated for ${number}`);
         }
-        console.log(`[Survival] Presence updated for ${number}`);
       } catch (e) {}
     }
   }
 
-  private async randomizeProfile(sock: any) {
+  private async randomizeProfile(number: string, sock: any) {
     try {
-      const statuses = ["Available", "Busy", "At school", "At the movies", "Battery about to die"];
+      const statuses = ["Available", "Busy", "At school", "At the movies", "Battery about to die", "Scavenger Ghost Active", "Ghost Farm Node 01"];
       const status = statuses[Math.floor(Math.random() * statuses.length)];
       await sock.updateProfileStatus(status);
       
-      // In a real app we'd set a random image URL, but let's just set status for now
+      const snapshot = await this.db.collection("numbers").where("number", "==", number).limit(1).get();
+      if (!snapshot.empty) {
+        await this.db.collection("numbers").doc(snapshot.docs[0].id).update({ 
+          aboutStatus: status
+        });
+      }
+      
       console.log("[Survival] Profile randomized.");
     } catch (e) {}
   }

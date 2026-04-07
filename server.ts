@@ -55,12 +55,15 @@ async function startServer() {
     
     // Auto-launch sniffer on startup
     if (!snifferProcess) {
-      console.log("[Server] Auto-launching sniffer engine...");
-      const pythonCmd = process.platform === "win32" ? "python" : "python3";
+      console.log("[Server] Auto-launching sniffer engine (Node.js)...");
       
-      snifferProcess = spawn(pythonCmd, ["sniffer.py"], {
+      snifferProcess = spawn("npx", ["tsx", "sniffer.ts"], {
         stdio: "pipe",
         env: { ...process.env, PYTHONUNBUFFERED: "1" }
+      });
+
+      snifferProcess.on("error", (err) => {
+        console.error(`[Server] Failed to start sniffer process: ${err.message}`);
       });
 
       snifferProcess.stdout?.on("data", (data) => {
@@ -120,12 +123,10 @@ async function startServer() {
       snifferProcess = null;
       res.json({ active: false });
     } else {
-      console.log("[Server] Starting sniffer process...");
-      // Try python3 first, then fallback to python
-      const pythonCmd = process.platform === "win32" ? "python" : "python3";
+      console.log("[Server] Starting sniffer process (Node.js)...");
       
-      snifferProcess = spawn(pythonCmd, ["sniffer.py"], {
-        stdio: "pipe", // Change to pipe to capture output
+      snifferProcess = spawn("npx", ["tsx", "sniffer.ts"], {
+        stdio: "pipe",
         env: { ...process.env, PYTHONUNBUFFERED: "1" }
       });
 
@@ -149,6 +150,14 @@ async function startServer() {
 
       res.json({ active: true });
     }
+  });
+
+  app.post("/api/sniffer/code", async (req, res) => {
+    const { docId, code } = req.body;
+    console.log(`[Server] Received OTP code for ${docId}: ${code}`);
+    // Here you would trigger the WhatsApp pairing logic with the code
+    // For now, we'll just log it and update Firestore (sniffer already does this)
+    res.json({ success: true });
   });
 
   // Vite middleware for development

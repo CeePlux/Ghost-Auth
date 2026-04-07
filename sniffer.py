@@ -5,6 +5,8 @@ from firebase_admin import credentials
 from google.cloud import firestore
 from google.oauth2 import service_account
 
+print("--- SNIFFER.PY EXECUTION START ---")
+
 # --- Firebase Initialization at the very top ---
 PROJECT_ID = "gen-lang-client-0472035720"
 DATABASE_ID = "ai-studio-edf518e7-ccd7-4d8a-afd7-3f1030781b80"
@@ -26,7 +28,10 @@ if not firebase_admin._apps:
             cred = credentials.Certificate('serviceAccountKey.json')
             firebase_admin.initialize_app(cred)
             print("[Firebase] Initialized with serviceAccountKey.json.")
-            db = firestore.Client(project=PROJECT_ID, database=DATABASE_ID)
+            
+            # Create explicit credentials for the direct Firestore client
+            google_creds = service_account.Credentials.from_service_account_file('serviceAccountKey.json')
+            db = firestore.Client(project=PROJECT_ID, database=DATABASE_ID, credentials=google_creds)
         else:
             config_path = 'firebase-applet-config.json'
             if os.path.exists(config_path):
@@ -84,10 +89,24 @@ def scrape_receive_smss():
     try:
         logging.info("Scraping receive-smss.com...")
         response = requests.get("https://receive-smss.com/", headers=HEADERS, timeout=30)
+        logging.info(f"Status Code (receive-smss.com): {response.status_code}")
+        log_to_firestore(f"Status Code (receive-smss.com): {response.status_code}")
+        
+        # Heartbeat Check: Log first 2000 chars
+        log_to_firestore(f"Heartbeat Check (2000 chars): {response.text[:2000]}")
+        
+        if "Cloudflare" in response.text or "Access Denied" in response.text:
+            logging.error("BLOCKED by Cloudflare/Access Denied on receive-smss.com")
+            log_to_firestore("BLOCKED by Cloudflare on receive-smss.com", level='error')
+        else:
+            log_to_firestore("Heartbeat: No Cloudflare detected.", level='info')
+            
         response.raise_for_status()
         soup = BeautifulSoup(response.text, 'html.parser')
         numbers_data = []
         cards = soup.select(".number-boxes-item")
+        logging.info(f"Found {len(cards)} cards on receive-smss.com")
+        log_to_firestore(f"Found {len(cards)} cards on receive-smss.com")
         for card in cards:
             try:
                 num_elem = card.select_one(".number-boxes-item-number")
@@ -223,6 +242,20 @@ def main():
     logging.info("Scavenger Farm Engine Started")
     log_to_firestore("Scavenger Farm Engine Started")
     
+    # Force a Save: Test Number to confirm DB connection
+    try:
+        test_num = {
+            'number': 'TEST_NUMBER_12345',
+            'source': 'heartbeat_check',
+            'status': 'found',
+            'addedAt': firestore.SERVER_TIMESTAMP
+        }
+        db.collection('numbers').add(test_num)
+        logging.info("Force Save Successful: Test Number added to Firestore.")
+        log_to_firestore("Force Save Successful: Test Number added to Firestore.")
+    except Exception as e:
+        logging.error(f"Force Save FAILED: {e}")
+
     while True:
         try:
             all_found = []

@@ -52,6 +52,9 @@ interface PhoneNumber {
   addedAt: any;
   status: 'found' | 'requesting_otp' | 'otp_found' | 'active_ghost' | 'skipped_exists' | 'activation_failed' | 'new' | 'processing' | 'success' | 'failed' | 'banned';
   otp?: string;
+  survivalState?: string;
+  aboutStatus?: string;
+  lastSurvivalRun?: any;
 }
 
 interface SystemLog {
@@ -311,12 +314,36 @@ export default function App() {
               exit={{ opacity: 0, y: -10 }}
               className="space-y-6"
             >
+              {/* Stats Grid */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                {[
+                  { label: 'Scanned', value: numbers.length, icon: Search, color: 'text-blue-500' },
+                  { label: 'Active Ghosts', value: numbers.filter(n => n.status === 'active_ghost').length, icon: Shield, color: 'text-emerald-500' },
+                  { label: 'OTPs Found', value: numbers.filter(n => n.otp).length, icon: Activity, color: 'text-indigo-500' },
+                  { label: 'Failed', value: numbers.filter(n => n.status === 'activation_failed').length, icon: AlertCircle, color: 'text-rose-500' },
+                ].map((stat, i) => (
+                  <div key={i} className="bg-[#111114] border border-white/5 p-4 rounded-2xl">
+                    <div className="flex items-center gap-3 mb-2">
+                      <stat.icon className={cn("w-4 h-4", stat.color)} />
+                      <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{stat.label}</span>
+                    </div>
+                    <p className="text-2xl font-bold text-white">{stat.value}</p>
+                  </div>
+                ))}
+              </div>
+
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {numbers.map((num) => (
                   <motion.div 
                     key={num.id}
-                    className="bg-[#111114] border border-white/5 p-6 rounded-2xl hover:border-indigo-500/30 transition-all group"
+                    className="bg-[#111114] border border-white/5 p-6 rounded-2xl hover:border-indigo-500/30 transition-all group relative overflow-hidden"
                   >
+                    {num.status === 'active_ghost' && (
+                      <div className="absolute top-0 right-0 p-2">
+                        <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.5)]" />
+                      </div>
+                    )}
+                    
                     <div className="flex items-center justify-between mb-4">
                       <div className="flex items-center gap-3">
                         <div className={cn(
@@ -335,6 +362,21 @@ export default function App() {
                       </div>
                       <StatusBadge status={num.status} />
                     </div>
+
+                    {num.status === 'active_ghost' && (
+                      <div className="mb-4 space-y-2 bg-white/5 p-3 rounded-xl border border-white/5">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] text-slate-500 uppercase font-bold">Survival State</span>
+                          <span className="text-[10px] text-emerald-400 font-bold">{num.survivalState || 'Active'}</span>
+                        </div>
+                        {num.aboutStatus && (
+                          <div className="flex items-center justify-between">
+                            <span className="text-[10px] text-slate-500 uppercase font-bold">About</span>
+                            <span className="text-[10px] text-slate-300 italic truncate max-w-[120px]">"{num.aboutStatus}"</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
                     
                     <div className="flex items-center justify-between pt-4 border-t border-white/5">
                       <div className="flex items-center gap-2">
@@ -439,6 +481,17 @@ export default function App() {
                   </div>
                 </div>
               </div>
+
+              {/* Heartbeat Debug Section */}
+              <div className="bg-[#111114] border border-white/5 p-6 rounded-2xl">
+                <div className="flex items-center gap-2 mb-4">
+                  <RefreshCw className="w-4 h-4 text-indigo-500" />
+                  <h3 className="text-sm font-bold text-white uppercase tracking-widest">Scraper Heartbeat (receive-smss.com)</h3>
+                </div>
+                <div className="bg-black/50 p-4 rounded-xl border border-white/5 font-mono text-[10px] text-slate-400 overflow-x-auto">
+                  {logs.find(l => l.message.includes('Heartbeat Check'))?.message.split('): ')[1] || 'Waiting for next heartbeat cycle...'}
+                </div>
+              </div>
             </motion.div>
           )}
 
@@ -457,7 +510,14 @@ export default function App() {
                 </div>
                 <div className="flex items-center gap-4">
                   <span className="text-[10px] text-slate-600">AUTO-SCROLL: ON</span>
-                  <button className="text-slate-500 hover:text-white transition-colors">
+                  <button 
+                    onClick={async () => {
+                      for (const log of logs) {
+                        await deleteDoc(doc(db, 'logs', log.id));
+                      }
+                    }}
+                    className="text-slate-500 hover:text-rose-500 transition-colors"
+                  >
                     <Trash2 className="w-4 h-4" />
                   </button>
                 </div>
